@@ -1,4 +1,7 @@
 # token_analyzer.py
+# Copyright (c) 2024 Giuseppe Birardi
+# Licensed under the MIT License - see LICENSE file for details
+
 import os
 import time
 import json

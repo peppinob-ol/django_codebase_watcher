@@ -1,4 +1,7 @@
 # watch_analyzer.py
+# Copyright (c) 2024 Giuseppe Birardi
+# Licensed under the MIT License - see LICENSE file for details
+
 import time
 import os
 from watchdog.observers import Observer
