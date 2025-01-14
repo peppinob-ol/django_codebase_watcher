@@ -1,6 +1,6 @@
 # Django Code Analysis Tool
 
-A powerful tool for analyzing Django projects, monitoring code changes, and generating comprehensive reports about your codebase. This tool is designed to help developers understand their Django projects better by providing insights into code structure, relationships between files, and tracking changes over time.
+A powerful tool for analyzing Django projects, monitoring code changes, and generating comprehensive reports about your codebase as context for prompting with language models. This tool is designed to help developers understand their Django projects better by providing insights into code structure, relationships between files, and tracking changes over time. 
 
 ## Features
 
