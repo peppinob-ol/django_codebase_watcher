@@ -1,7 +1,7 @@
 # token_analyzer.py
 # Copyright (c) 2024 Giuseppe Birardi
 # Licensed under the MIT License - see LICENSE file for details
-
+# token_analyzer.py
 import os
 import time
 import json
@@ -44,11 +44,23 @@ class TokenAwareAnalyzer:
         'static': ['.js', '.css']
     }
 
-    def __init__(self, project_root: str = '.'):
+    def __init__(self, project_root: str = '.', included_dirs=None):
         self.project_root = project_root
         self.output_dir = 'print_codebase'
         self.selected_files = []
+        self.included_dirs = [os.path.normpath(d) for d in (included_dirs or [])]
         os.makedirs(self.output_dir, exist_ok=True)
+
+    def is_path_included(self, path: str) -> bool:
+        """Verifica se un path è incluso nelle directory specificate."""
+        if not self.included_dirs:
+            return True
+
+        normalized_path = os.path.normpath(path)
+        return any(
+            normalized_path.startswith(os.path.normpath(included_dir))
+            for included_dir in self.included_dirs
+        )
 
     def find_app_directory(self, file_path: str) -> str:
         """Identifica la directory dell'app Django dal path del file."""
@@ -137,7 +149,13 @@ class TokenAwareAnalyzer:
         """Raccoglie tutti i file rilevanti con le loro informazioni."""
         files = []
         for root, dirs, filenames in os.walk(self.project_root):
+            # Filtra le directory escluse
             dirs[:] = [d for d in dirs if d not in self.EXCLUDED_DIRECTORIES]
+
+            # Verifica se la directory corrente è inclusa nel filtro
+            rel_root = os.path.relpath(root, self.project_root)
+            if not self.is_path_included(rel_root):
+                continue
 
             for file in filenames:
                 # Verifica sia per file Python che per template/static
@@ -330,65 +348,11 @@ class TokenAwareAnalyzer:
             print(f"Error: Directory '{directory_path}' non trovata.")
             return
 
-        timestamp = time.strftime('%Y%m%d_%H%M%S')
-        parent_dir_name = os.path.basename(os.path.dirname(directory_path))
-        dir_name = os.path.basename(directory_path)
-        output_file = os.path.join(self.output_dir, f'directory_analysis_{parent_dir_name}_{dir_name}.txt')
+        if not self.is_path_included(directory_path):
+            print(f"Directory '{directory_path}' non è tra quelle monitorate.")
+            return
 
-        with open(output_file, 'w', encoding='utf-8') as f:
-            f.write(f"\nAnalisi della directory: {directory_path}\n")
-            f.write(f"{timestamp}\n")
-            f.write("=" * 50 + "\n")
-            f.write("\nSTRUTTURA DIRECTORY:\n")
-            f.write("=" * 50 + "\n")
 
-            # Prima scrivi la struttura
-            for root, dirs, files in os.walk(directory_path):
-                dirs[:] = [d for d in dirs if d not in self.EXCLUDED_DIRECTORIES]
-
-                level = root[len(directory_path):].count(os.sep)
-                indent = '  ' * level
-
-                f.write(f"{indent}{os.path.basename(root)}/\n")
-
-                subindent = '  ' * (level + 1)
-                for file in files:
-                    file_path = os.path.join(root, file)
-                    size = os.path.getsize(file_path)
-                    modified = datetime.fromtimestamp(os.path.getmtime(file_path))
-
-                    if size < 1024:
-                        size_str = f"{size} B"
-                    elif size < 1024 * 1024:
-                        size_str = f"{size / 1024:.1f} KB"
-                    else:
-                        size_str = f"{size / (1024 * 1024):.1f} MB"
-
-                    f.write(f"{subindent}{file} ({size_str}) - Modificato: {modified.strftime('%Y-%m-%d %H:%M:%S')}\n")
-
-            # Poi scrivi i contenuti
-            f.write("\nCONTENUTI DEI FILE:\n")
-            f.write("=" * 50 + "\n")
-
-            for root, dirs, files in os.walk(directory_path):
-                dirs[:] = [d for d in dirs if d not in self.EXCLUDED_DIRECTORIES]
-
-                for file in files:
-                    file_path = os.path.join(root, file)
-                    rel_path = os.path.relpath(file_path, directory_path)
-
-                    try:
-                        with open(file_path, 'r', encoding='utf-8') as source:
-                            content = source.read()
-                            f.write(f"\n--- {rel_path} ---\n")
-                            f.write("```\n")
-                            f.write(content)
-                            f.write("\n```\n")
-                            f.write("-" * 40 + "\n")
-                    except Exception as e:
-                        f.write(f"\nError reading {rel_path}: {e}\n")
-
-        print(f"Analisi completata. Output salvato in: {output_file}")
 
 
 if __name__ == "__main__":
@@ -397,9 +361,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Django Project Analyzer')
     parser.add_argument('--dir', '-d', type=str, help='Directory da analizzare')
     parser.add_argument('--report', '-r', action='store_true', help='Genera un report completo')
+    parser.add_argument('--include', '-i', nargs='+', help='Lista delle directory da includere nell\'analisi')
 
     args = parser.parse_args()
-    analyzer = TokenAwareAnalyzer()
+    analyzer = TokenAwareAnalyzer(included_dirs=args.include)
 
     if args.dir:
         analyzer.analyze_directory(args.dir)
@@ -407,5 +372,5 @@ if __name__ == "__main__":
         print("\nGenerazione report completo...")
         analyzer.generate_report()
     if not args.dir and not args.report:
-        print("Uso: python token_analyzer.py [-d DIRECTORY] [-r]")
-        print("Esempio:\n  python token_analyzer.py -d ./myapp -r")
+        print("Uso: python token_analyzer.py [-d DIRECTORY] [-r] [-i DIR1 DIR2 ...]")
+        print("Esempio:\n  python token_analyzer.py -d ./myapp -r -i apps/users apps/products")
